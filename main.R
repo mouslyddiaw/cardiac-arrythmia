@@ -1,1 +1,6 @@
-df = read.csv("data_arrhythmia.csv", sep=';',header=TRUE,na.strings=c("?"))
+
+
+arrhythmia <- read_delim("Desktop/cardiac_arrythmia/data_arrhythmia_preprocess.csv", ";", escape_double = FALSE, trim_ws = TRUE)
+View(arrhythmia)
+
+
