@@ -1,7 +1,8 @@
 ### Cardiac arrhythmia classification
 rm(list=ls()) 
-library(readr)
-library(GoodmanKruskal)
+library("easypackages")  
+libraries("readr","party","leaps","caret")
+
 
 #Import data processed in jupyter notebook
 arrhythmia <- read_delim("Desktop/cardiac_arrythmia/data_arrhythmia_preprocess.csv", ";")
@@ -38,5 +39,27 @@ highcorrnum <- highcorrnum[!duplicated(t(apply(highcorrnum, 1, sort))), ] #Remov
 arrhythmia  <- subset(arrhythmia, select = -c(II,IO) )
 numerical_cols <- setdiff(numerical_cols,c("II","IO"))
 
+###############################################
+#Feature selection 
+
+# Set seed for reproducibility
+set.seed(123)
+# Set up repeated k-fold cross-validation
+train.control <- trainControl(method = "cv", number = 10)
+# Train the model
+step.model <- train(diagnosis ~., data = arrhythmia,
+                    method = "leapBackward", 
+                    tuneGrid = data.frame(nvmax = 1:24),
+                    trControl = train.control
+) 
+
+
+models <- regsubsets(diagnosis~., data = arrhythmia, nvmax = step.model$bestTune,method = "seqrep")
+summary(models)
+
+###############################################
 #Dimension reduction
 
+
+#cf1 <- cforest(diagnosis ~ . , data= arrhythmia, control=cforest_unbiased(mtry=2,ntree=50)) # fit the random forest
+#varimp(cf1)
