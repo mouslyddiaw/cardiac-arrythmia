@@ -1,8 +1,10 @@
-### Cardiac arrhythmia classification
+#### Cardiac arrhythmia classification
 rm(list=ls()) 
 library("easypackages")  
 libraries("readr","party","leaps","caret","pROC")
 
+############################################### 
+### Additional processing  
 
 #Import data processed in jupyter notebook
 arrhythmia <- read_delim("Desktop/cardiac_arrythmia/data_arrhythmia_preprocess.csv", ";")
@@ -43,10 +45,6 @@ numerical_cols <- setdiff(numerical_cols,c("II","IO"))
 predictors <- arrhythmia[,-length(arrhythmia)]
 class <- arrhythmia$diagnosis
 
- 
-###############################################
-#Model training
-
 #Data splitting 
 set.seed(1) 
 inTrain <- createDataPartition(class, p = .8)[[1]] 
@@ -54,40 +52,17 @@ inTrain <- createDataPartition(class, p = .8)[[1]]
 arrhythmiaTrain <-  arrhythmia[inTrain, ]
 arrhythmiaTest <-  arrhythmia[-inTrain, ]
 
-# trainClass <- class[inTrain] 
-# 
-# testPredictors <- predictors[-inTrain, ]
+###############################################
+### Building classifiers
 
-# trainPredictors <- predictors[inTrain, ]
-# trainClass <- class[inTrain] 
-# 
-# testPredictors <- predictors[-inTrain, ]
-# testClass <- class[-inTrain]
-
-#Resampling by cross-validation
-# set.seed(1)
-# cvSplits <- createFolds(trainClass, k = 10, returnTrain = TRUE)
- 
-#SVM model
-
-set.seed(1056)
-svmFit <- train(diagnosis ~ .,
-                data = arrhythmiaTrain,
-                method = "svmRadial",
-                preProc = c("center", "scale"),
-                tuneLength = 10,
-                metric = "ROC",
-                trControl = trainControl(method = "repeatedcv",
-                                         repeats = 5,classProbs = TRUE))
-
+## Logistic regression
 set.seed(1056)
 logisticReg <- train(diagnosis ~ .,
                      data = arrhythmiaTrain,
                      method = "glm",
                      metric = "ROC",
-                     trControl = trainControl(method = "repeatedcv",
-                                              repeats = 5,classProbs = TRUE))
-                         
+                     trControl = ctrl)
+
 resamp <- resamples(list(SVM = svmFit, Logistic = logisticReg)) 
 summary(resamp)
 
@@ -97,10 +72,43 @@ summary(modelDifferences)
 arrhythmiaTest$svmDiagnosis <- predict(svmFit, arrhythmiaTest)  
 
 confusionMatrix(data = arrhythmiaTest$svmDiagnosis,
-            reference = arrhythmiaTest$diagnosis,
-            positive = "1") 
+                reference = arrhythmiaTest$diagnosis,
+                positive = "Normal") 
 
-# 
+## Logistic regression regularized
+
+## PLS
+
+## LDA
+
+## sparse LDA (penalized)
+
+## Linear SVM  
+
+## Polynomial SVM 
+
+## Radial SVM  
+set.seed(1056)
+ctrl<- trainControl(method = "repeatedcv",
+             repeats = 5,classProbs = TRUE)
+
+svmFit <- train(diagnosis ~ .,
+                data = arrhythmiaTrain,
+                method = "svmRadial",
+                preProc = c("center", "scale"),
+                tuneLength = 10,
+                metric = "ROC",
+                trControl = ctrl)
+
+## kNN
+
+## CART 
+
+## Random forests
+
+## Bagging
+
+ 
 # rocCurve <- roc(response = arrhythmiaTest$diagnosis,
 #                 predictor = arrhythmiaTest$qrs_duration, 
 #                 levels = rev(levels(arrhythmiaTest$diagnosis)))
@@ -108,3 +116,7 @@ confusionMatrix(data = arrhythmiaTest$svmDiagnosis,
 # auc(rocCurve)
 # ci.roc(rocCurve)
 # plot(rocCurve, legacy.axes = TRUE)
+
+###############################################
+### Results summary
+
