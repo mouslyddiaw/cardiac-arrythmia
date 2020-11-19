@@ -1,7 +1,7 @@
 ### Cardiac arrhythmia classification
 rm(list=ls()) 
 library("easypackages")  
-libraries("readr","party","leaps","caret","Boruta")
+libraries("readr","party","leaps","caret")
 
 
 #Import data processed in jupyter notebook
@@ -40,30 +40,54 @@ highcorrnum <- highcorrnum[!duplicated(t(apply(highcorrnum, 1, sort))), ] #Remov
 arrhythmia  <- subset(arrhythmia, select = -c(II,IO) )
 numerical_cols <- setdiff(numerical_cols,c("II","IO"))
 
+predictors <- arrhythmia[,-length(arrhythmia)]
+class <- arrhythmia$diagnosis
+
+ 
 ###############################################
-#Feature selection 
-set.seed(111)
-boruta.arrhythmia <- TentativeRoughFix(Boruta(diagnosis~., data =  arrhythmia, doTrace = 2)) 
+#Model training
 
-getSelectedAttributes(boruta.arrhythmia, withTentative = F)
+#Data splitting 
+set.seed(1) 
+inTrain <- createDataPartition(class, p = .8)[[1]] 
 
-#lda, lasso, random forest
-###############################################
-#Dimension reduction
-# Set seed for reproducibility
-set.seed(123)
-# Set up repeated k-fold cross-validation
-train.control <- trainControl(method = "cv", number = 10)
-# Train the model
-step.model <- train(diagnosis ~., data = arrhythmia,
-                    method = "pls",
-                    preProc = c("center", "scale"), 
-                    tuneLength = 15,
-                    trControl = train.control
-) 
-step.model$bestTune
+arrhythmiaTrain <-  arrhythmia[inTrain, ]
+arrhythmiaTest <-  arrhythmia[-inTrain, ]
 
-summary(step.model$finalModel)
+# trainClass <- class[inTrain] 
+# 
+# testPredictors <- predictors[-inTrain, ]
 
-#cf1 <- cforest(diagnosis ~ . , data= arrhythmia, control=cforest_unbiased(mtry=2,ntree=50)) # fit the random forest
-#varimp(cf1)
+# trainPredictors <- predictors[inTrain, ]
+# trainClass <- class[inTrain] 
+# 
+# testPredictors <- predictors[-inTrain, ]
+# testClass <- class[-inTrain]
+
+#Resampling by cross-validation
+# set.seed(1)
+# cvSplits <- createFolds(trainClass, k = 10, returnTrain = TRUE)
+ 
+#SVM model
+
+set.seed(1056)
+svmFit <- train(diagnosis ~ .,
+                data = arrhythmiaTrain,
+                method = "svmRadial",
+                preProc = c("center", "scale"),
+                tuneLength = 10,
+                trControl = trainControl(method = "repeatedcv",
+                                         repeats = 5))
+
+set.seed(1056)
+logisticReg <- train(diagnosis ~ .,
+                     data = arrhythmiaTrain,
+                     method = "glm",
+                     trControl = trainControl(method = "repeatedcv",
+                                              repeats = 5))
+                         
+resamp <- resamples(list(SVM = svmFit, Logistic = logisticReg)) 
+summary(resamp)
+
+modelDifferences <- diff(resamp) 
+summary(modelDifferences)
