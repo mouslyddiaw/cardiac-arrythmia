@@ -1,7 +1,7 @@
 ### Cardiac arrhythmia classification
 rm(list=ls()) 
 library("easypackages")  
-libraries("readr","party","leaps","caret")
+libraries("readr","party","leaps","caret","pROC")
 
 
 #Import data processed in jupyter notebook
@@ -76,18 +76,35 @@ svmFit <- train(diagnosis ~ .,
                 method = "svmRadial",
                 preProc = c("center", "scale"),
                 tuneLength = 10,
+                metric = "ROC",
                 trControl = trainControl(method = "repeatedcv",
-                                         repeats = 5))
+                                         repeats = 5,classProbs = TRUE))
 
 set.seed(1056)
 logisticReg <- train(diagnosis ~ .,
                      data = arrhythmiaTrain,
                      method = "glm",
+                     metric = "ROC",
                      trControl = trainControl(method = "repeatedcv",
-                                              repeats = 5))
+                                              repeats = 5,classProbs = TRUE))
                          
 resamp <- resamples(list(SVM = svmFit, Logistic = logisticReg)) 
 summary(resamp)
 
 modelDifferences <- diff(resamp) 
 summary(modelDifferences)
+
+arrhythmiaTest$svmDiagnosis <- predict(svmFit, arrhythmiaTest)  
+
+confusionMatrix(data = arrhythmiaTest$svmDiagnosis,
+            reference = arrhythmiaTest$diagnosis,
+            positive = "1") 
+
+# 
+# rocCurve <- roc(response = arrhythmiaTest$diagnosis,
+#                 predictor = arrhythmiaTest$qrs_duration, 
+#                 levels = rev(levels(arrhythmiaTest$diagnosis)))
+# 
+# auc(rocCurve)
+# ci.roc(rocCurve)
+# plot(rocCurve, legacy.axes = TRUE)
