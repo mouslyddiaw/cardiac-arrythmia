@@ -1,7 +1,7 @@
 #### Cardiac arrhythmia classification
 rm(list=ls()) 
 library("easypackages")  
-libraries("readr","party","leaps","caret","pROC")
+libraries("readr","party","leaps","caret","pROC","Boruta")
 
 ############################################### 
 ### Additional processing  
@@ -42,40 +42,49 @@ highcorrnum <- highcorrnum[!duplicated(t(apply(highcorrnum, 1, sort))), ] #Remov
 arrhythmia  <- subset(arrhythmia, select = -c(II,IO) )
 numerical_cols <- setdiff(numerical_cols,c("II","IO"))
 
+#pairs(arrhythmia[,c(1:6,14,143)], col=arrhythmia$diagnosis)
+
 predictors <- arrhythmia[,-length(arrhythmia)]
 class <- arrhythmia$diagnosis
 
 #Data splitting 
 set.seed(1) 
-inTrain <- createDataPartition(class, p = .8)[[1]] 
+inTrain <- createDataPartition(class, p = .7)[[1]] 
 
 arrhythmiaTrain <-  arrhythmia[inTrain, ]
 arrhythmiaTest <-  arrhythmia[-inTrain, ]
 
 ###############################################
-### Building classifiers
-
+### Building classifiers 
 ## Logistic regression
 set.seed(1056)
-logisticReg <- train(diagnosis ~ .,
+logReg <- train(diagnosis ~ .,
                      data = arrhythmiaTrain,
                      method = "glm",
+                     family=binomial(),
                      metric = "ROC",
-                     trControl = ctrl)
+                     trControl = trainControl(method = "repeatedcv",
+                                              repeats = 5,classProbs = TRUE))
 
-resamp <- resamples(list(SVM = svmFit, Logistic = logisticReg)) 
-summary(resamp)
+varImp(logReg)
 
-modelDifferences <- diff(resamp) 
-summary(modelDifferences)
+logRegPred <- predict(logReg, arrhythmiaTest)  
 
-arrhythmiaTest$svmDiagnosis <- predict(svmFit, arrhythmiaTest)  
-
-confusionMatrix(data = arrhythmiaTest$svmDiagnosis,
-                reference = arrhythmiaTest$diagnosis,
-                positive = "Normal") 
+confusionMatrix(logRegPred,arrhythmiaTest$diagnosis,positive = "Anormal") 
 
 ## Logistic regression regularized
+set.seed(1056)
+logRegPen <- train(diagnosis ~ .,
+                data = arrhythmiaTrain,
+                method = "glmnet",
+                family=binomial(),
+                metric = "ROC",
+                trControl = trainControl(method = "repeatedcv",
+                                         repeats = 5,classProbs = TRUE))
+
+
+# alpha = 1, 
+# lambda = NULL,
 
 ## PLS
 
@@ -88,9 +97,7 @@ confusionMatrix(data = arrhythmiaTest$svmDiagnosis,
 ## Polynomial SVM 
 
 ## Radial SVM  
-set.seed(1056)
-ctrl<- trainControl(method = "repeatedcv",
-             repeats = 5,classProbs = TRUE)
+set.seed(1056) 
 
 svmFit <- train(diagnosis ~ .,
                 data = arrhythmiaTrain,
@@ -98,13 +105,52 @@ svmFit <- train(diagnosis ~ .,
                 preProc = c("center", "scale"),
                 tuneLength = 10,
                 metric = "ROC",
-                trControl = ctrl)
+                trControl = trainControl(method = "repeatedcv",
+                                         repeats = 5,classProbs = TRUE))
+
+ggplot(svmFit) + theme_bw()
+
+svmPred <- predict(svmFit, arrhythmiaTest)  
+
+confusionMatrix(svmPred,arrhythmiaTest$diagnosis,positive = "Anormal") 
 
 ## kNN
+set.seed(1056) 
+knnModel = train(
+  diagnosis ~ .,
+  data = arrhythmiaTrain,
+  method = "knn",
+  metric = "ROC",
+  trControl = trainControl(method = "repeatedcv",
+                           repeats = 5,classProbs = TRUE),
+  tuneGrid = expand.grid(k = seq(1, 101, by = 2)) #optional
+  )
+  
+
+ggplot(knnModel) + theme_bw()
+  
+knnPred <- predict(knnModel, arrhythmiaTest)  
+  
+confusionMatrix(knnPred,arrhythmiaTest$diagnosis,positive = "Anormal") 
 
 ## CART 
 
 ## Random forests
+set.seed(1056)
+tunegrid <- expand.grid(.mtry=c(1:15))
+rfModel <- train(
+  diagnosis~., 
+  data=arrhythmiaTrain, 
+  method="rf", 
+  metric="ROC",
+  tuneGrid=tunegrid, 
+  trControl=trainControl(method = "repeatedcv",
+                         repeats = 5,classProbs = TRUE))
+ggplot(rfModel) + theme_bw()
+
+rfPred <- predict(rfModel, arrhythmiaTest)  
+
+confusionMatrix(rfPred,arrhythmiaTest$diagnosis,positive = "Anormal") 
 
 ## Bagging
 
@@ -120,3 +166,21 @@ svmFit <- train(diagnosis ~ .,
 ###############################################
 ### Results summary
 
+resamp <- resamples(list(SVM = svmFit, Logistic = logReg, kNN = knnModel))
+summary(resamp)
+
+modelDifferences <- diff(resamp)
+summary(modelDifferences)
+
+
+# trellis.par.set(caretTheme())
+# dotplot(resamps, metric = "ROC")
+
+
+# theme1 <- trellis.par.get()
+# theme1$plot.symbol$col = rgb(.2, .2, .2, .4)
+# theme1$plot.symbol$pch = 16
+# theme1$plot.line$col = rgb(1, 0, 0, .7)
+# theme1$plot.line$lwd <- 2
+# trellis.par.set(theme1)
+# bwplot(resamps, layout = c(3, 1))
