@@ -1,7 +1,7 @@
 #### Cardiac arrhythmia classification
 rm(list=ls()) 
 library("easypackages")  
-libraries("readr","party","leaps","caret","pROC","MLmetrics")
+libraries("readr","party","leaps","caret","pROC","MLmetrics","glmnet")
 
 ############################################### 
 ### Additional processing  
@@ -65,27 +65,25 @@ f1 <- function(data, lev = NULL, model = NULL) {
 ctrl <- trainControl(method = "repeatedcv", repeats = 5,classProbs = TRUE,summaryFunction = f1)
 
 ## Logistic regression
+
+# Specify a null model with no predictors
+null_model <- glm(diagnosis ~ 1, data = arrhythmiaTrain,family = "binomial")
+
+# Specify the full model using all of the potential predictors
+full_model <- glm(diagnosis ~ ., data = arrhythmiaTrain,family = "binomial")
+
+# Use a forward stepwise algorithm to build a parsimonious model
+step_model <- step(null_model, scope = list(lower = null_model, upper = full_model), direction = "forward")
+
 set.seed(1056)
-logReg <- train(diagnosis ~ .,
-                     data = arrhythmiaTrain,
-                     method = "glm",
-                     family=binomial,
-                     metric = "F1",  
-                     trControl = ctrl)
-
-varImp(logReg)
-
-## Logistic regression regularized
-set.seed(1056) 
-logRegPen <- train(diagnosis ~ DD + qrs_duration + HT,
+logReg <- train(diagnosis ~ HT + qrs_duration + DD + DA + KK + 
+                  EN + HA + KT + KG + height + BN + GP + FB + AV + CL + DP + 
+                  DL + JG + GM + JL + IT,
                 data = arrhythmiaTrain,
-                method = "glmnet",
-                family="binomial",
-                tuneGrid = expand.grid(alpha = 0:1,
-                  lambda = seq(0.0001, 1, length = 20)),
-                metric = "F1",
-                trControl = ctrl)
- 
+                method = "glm",
+                family=binomial,
+                metric = "F1",   
+                trControl = ctrl)  
 
 ## PLS
 plsFit <- train(diagnosis ~ .,
@@ -159,7 +157,7 @@ svmPol<- train(diagnosis ~ .,
                data = arrhythmiaTrain,
                method = "svmPoly",
                preProc = c("center", "scale"),
-               tuneLength = 10,
+               tuneLength = 4,
                metric = "F1",
                trControl = ctrl)
 
@@ -171,21 +169,12 @@ knnModel = train(
   method = "knn",
   metric = "F1",
   trControl = ctrl,
+  preProc = c("center", "scale", "pca"),
   tuneGrid = expand.grid(k = seq(1, 101, by = 2))  
   )
   
 
 ggplot(knnModel) + theme_bw() 
-
-## CART 
-rpFit <- train(
-  diagnosis ~ .,
-  data = arrhythmiaTrain,
-  method = "rpart",
-  metric = "F1",
-  maximize = FALSE,
-  tuneLength = 20,
-  trControl = ctrl)
                    
 ## Random forests
 set.seed(1056) 
@@ -199,15 +188,34 @@ rfModel <- train(
 
 ggplot(rfModel) + theme_bw() 
 
+## CART 
+rpFit <- train(
+  diagnosis ~ .,
+  data = arrhythmiaTrain,
+  method = "rpart",
+  metric = "F1",
+  # maximize = FALSE,
+  # tuneLength = 20,
+  trControl = ctrl)
+
 ## Bagging
-# cr.fit <- train(Species~., data = train, method = "treebag",
-#                 trControl = trCtrl, metric = "Accuracy")
+
+set.seed(1056) 
+bagModel <- train(
+  diagnosis~., 
+  data=arrhythmiaTrain, 
+  method= "treebag", 
+  metric="F1", 
+  trControl=ctrl) 
 
 ###############################################
 ### Results summary
 
-results <- resamples(list(Logistic = logReg, PenalizedLogistic = logRegPen, PLS = plsFit, LDA = ldaFit, LDA2 = ldaFit2,
-                          SVMLin=svmLin,SVMRad=svmRad,SVMPoly = svmPol,kNN = knnModel, CART = rpFit, RF = rfModel))
+results <- resamples(list(Logistic = logReg, Logistic2 = logReg2,
+                          PenalizedLogistic = logRegPen, 
+                          PLS = plsFit, LDA = ldaFit, LDA2 = ldaFit2,
+                          sparseLDA= sparseldaFit, SVMLin=svmLin,SVMRad=svmRad,
+                          SVMPoly = svmPol,kNN = knnModel, RF = rfModel)) #, CART = rpFit,
 
 dotplot(results) 
 
@@ -227,15 +235,15 @@ summary(modelDifferences)
 
 ###############################################
 ### Prediction results
+finalmodel <- logReg
+predProb <- predict(finalmodel , arrhythmiaTest,type = "prob")
+predClass <- predict(finalmodel , arrhythmiaTest)
 
-SVMRadPredProb <- predict(svmRad, arrhythmiaTest,type = "prob")
-SVMRadPredClass <- predict(svmRad, arrhythmiaTest)
-
-confusionMatrix(SVMRadPredClass,arrhythmiaTest$diagnosis,positive = "Anormal") 
-F1_Score(y_pred = SVMRadPredClass, y_true = arrhythmiaTest$diagnosis, positive = "Anormal")
+confusionMatrix(predClass,arrhythmiaTest$diagnosis,positive = "Anormal") 
+F1_Score(y_pred = predClass, y_true = arrhythmiaTest$diagnosis, positive = "Anormal")
 
 
 auc( roc(response = arrhythmiaTest$diagnosis,
-                     predictor = SVMRadPredProb[,"Anormal"],
+                     predictor = predProb[,"Anormal"],
                     levels = rev(levels(arrhythmiaTest$diagnosis))))
  
