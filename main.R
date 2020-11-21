@@ -75,59 +75,93 @@ logReg <- train(diagnosis ~ .,
 
 varImp(logReg)
 
-logRegPred <- predict(logReg, arrhythmiaTest)  
-
-confusionMatrix(logRegPred,arrhythmiaTest$diagnosis,positive = "Anormal") 
-
 ## Logistic regression regularized
-set.seed(1056)
-
-myGrid <- expand.grid(
-  alpha = 0:1,
-  lambda = seq(0.0001, 1, length = 20)
-)
-
-logRegPen <- train(diagnosis ~ .,
+set.seed(1056) 
+logRegPen <- train(diagnosis ~ DD + qrs_duration + HT,
                 data = arrhythmiaTrain,
                 method = "glmnet",
-                family=binomial,
-                tuneGrid = myGrid,
+                family="binomial",
+                tuneGrid = expand.grid(alpha = 0:1,
+                  lambda = seq(0.0001, 1, length = 20)),
                 metric = "F1",
                 trControl = ctrl)
  
 
 ## PLS
+plsFit <- train(diagnosis ~ .,
+                data = arrhythmiaTrain,
+                method = "pls",
+                tuneGrid = expand.grid(.ncomp = 1:10),
+                preProc = c("center","scale"),
+                metric = "F1",
+                trControl = ctrl)
+
+varImp(plsFit, scale = FALSE)
+plot(varImp(plsFit, scale = FALSE), top = 20, scales = list(y = list(cex = .95)))
 
 ## LDA
 set.seed(1056)
-model4 <- train(diagnosis ~ .,
+ldaFit <- train(diagnosis ~ .,
                 data = arrhythmiaTrain,
                 method = "lda", 
-                #preProcess = c("zv", "center", "scale", "pca")
+                preProcess = c("center", "scale"),
+                metric = "F1",
+                trControl = ctrl 
 )
 
-## sparse LDA (penalized)
+set.seed(1056)
+ldaFit2 <- train(diagnosis ~ .,
+                 data = arrhythmiaTrain,
+                 method = "lda", 
+                 preProcess = c("center", "scale","pca"),
+                 metric = "F1",
+                 trControl = ctrl
+)
+
+## sparse LDA 
+set.seed(1056)
+sparseldaFit <- train(diagnosis ~ .,
+                data = arrhythmiaTrain,
+                method = "sparseLDA", 
+                preProcess = c("center", "scale"),
+                metric = "F1",
+                trControl = ctrl
+)
 
 ## Linear SVM  
+set.seed(1056) 
 
-## Polynomial SVM 
+svmLin <- train(diagnosis ~ .,
+                data = arrhythmiaTrain,
+                method = "svmLinear",
+                preProc = c("center", "scale"),
+                tuneLength = 10,
+                metric = "F1",
+                trControl = ctrl)
 
 ## Radial SVM  
 set.seed(1056) 
 
-svmFit <- train(diagnosis ~ .,
+svmRad <- train(diagnosis ~ .,
                 data = arrhythmiaTrain,
                 method = "svmRadial",
                 preProc = c("center", "scale"),
                 tuneLength = 10,
-                metric = "ROC",
+                metric = "F1",
                 trControl = ctrl)
 
-ggplot(svmFit) + theme_bw()
+ggplot(svmFit) + theme_bw() 
 
-svmPred <- predict(svmFit, arrhythmiaTest)  
+## Polynomial SVM 
+set.seed(1056) 
 
-confusionMatrix(svmPred,arrhythmiaTest$diagnosis,positive = "Anormal") 
+svmPol<- train(diagnosis ~ .,
+               data = arrhythmiaTrain,
+               method = "svmPoly",
+               preProc = c("center", "scale"),
+               tuneLength = 10,
+               metric = "F1",
+               trControl = ctrl)
 
 ## kNN
 set.seed(1056) 
@@ -135,78 +169,73 @@ knnModel = train(
   diagnosis ~ .,
   data = arrhythmiaTrain,
   method = "knn",
-  metric = "ROC",
+  metric = "F1",
   trControl = ctrl,
-  tuneGrid = expand.grid(k = seq(1, 101, by = 2)) #optional
+  tuneGrid = expand.grid(k = seq(1, 101, by = 2))  
   )
   
 
-ggplot(knnModel) + theme_bw()
-  
-knnPred <- predict(knnModel, arrhythmiaTest)  
-  
-confusionMatrix(knnPred,arrhythmiaTest$diagnosis,positive = "Anormal") 
+ggplot(knnModel) + theme_bw() 
 
 ## CART 
-rpFitCost <- train(x = trainData[, predictors],
-                   y= trainData$Class, method = "rpart", metric = "Cost", maximize = FALSE,tuneLength = 20,
-                   trControl = ctrl)
+rpFit <- train(
+  diagnosis ~ .,
+  data = arrhythmiaTrain,
+  method = "rpart",
+  metric = "F1",
+  maximize = FALSE,
+  tuneLength = 20,
+  trControl = ctrl)
                    
 ## Random forests
-set.seed(1056)
-tunegrid <- expand.grid(.mtry=c(1:15))
+set.seed(1056) 
 rfModel <- train(
   diagnosis~., 
   data=arrhythmiaTrain, 
   method="rf", 
-  metric="ROC",
-  tuneGrid=tunegrid, 
+  metric="F1",
+  tuneGrid= expand.grid(.mtry=c(1:15)), 
   trControl=ctrl)
 
-ggplot(rfModel) + theme_bw()
-
-rfPred <- predict(rfModel, arrhythmiaTest)  
-
-confusionMatrix(rfPred,arrhythmiaTest$diagnosis,positive = "Anormal") 
+ggplot(rfModel) + theme_bw() 
 
 ## Bagging
-
- 
-# rocCurve <- roc(response = arrhythmiaTest$diagnosis,
-#                 predictor = arrhythmiaTest$qrs_duration, 
-#                 levels = rev(levels(arrhythmiaTest$diagnosis)))
-# 
-# auc(rocCurve)
-# ci.roc(rocCurve)
-# plot(rocCurve, legacy.axes = TRUE)
+# cr.fit <- train(Species~., data = train, method = "treebag",
+#                 trControl = trCtrl, metric = "Accuracy")
 
 ###############################################
 ### Results summary
 
-results <- resamples(list(SVM = svmFit, Logistic = logReg, kNN = knnModel))
+results <- resamples(list(Logistic = logReg, PenalizedLogistic = logRegPen, PLS = plsFit, LDA = ldaFit, LDA2 = ldaFit2,
+                          SVMLin=svmLin,SVMRad=svmRad,SVMPoly = svmPol,kNN = knnModel, CART = rpFit, RF = rfModel))
+
+dotplot(results) 
+
 summary(results)
 
 bwplot(results)
-dotplot(results)
-dotplot(results, metric = "ROC")
+ 
+  
 
-xyplot(resamps, metric = "ROC")
-densityplot(resamps, metric = "ROC")
+xyplot(results)
+densityplot(results)
 
 
 
-modelDifferences <- diff(resamp)
+modelDifferences <- diff(results)
 summary(modelDifferences)
 
+###############################################
+### Prediction results
 
-# trellis.par.set(caretTheme())
-# dotplot(resamps, metric = "ROC")
+SVMRadPredProb <- predict(svmRad, arrhythmiaTest,type = "prob")
+SVMRadPredClass <- predict(svmRad, arrhythmiaTest)
+
+confusionMatrix(SVMRadPredClass,arrhythmiaTest$diagnosis,positive = "Anormal") 
+F1_Score(y_pred = SVMRadPredClass, y_true = arrhythmiaTest$diagnosis, positive = "Anormal")
 
 
-# theme1 <- trellis.par.get()
-# theme1$plot.symbol$col = rgb(.2, .2, .2, .4)
-# theme1$plot.symbol$pch = 16
-# theme1$plot.line$col = rgb(1, 0, 0, .7)
-# theme1$plot.line$lwd <- 2
-# trellis.par.set(theme1)
-# bwplot(resamps, layout = c(3, 1))
+auc( roc(response = arrhythmiaTest$diagnosis,
+                     predictor = SVMRadPredProb[,"Anormal"],
+                    levels = rev(levels(arrhythmiaTest$diagnosis))))
+ 
