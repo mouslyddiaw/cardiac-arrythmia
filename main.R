@@ -39,24 +39,27 @@ highcorrnum <- highcorrnum[!duplicated(t(apply(highcorrnum, 1, sort))), ] #Remov
 #m = as.matrix(df)
 #corPlot(m, method = "spearman")
 
-arrhythmia  <- subset(arrhythmia, select = -c(II,IO) )
+#Final dataframe
+arrhythmia  <- subset(arrhythmia, select = -c(II,IO) ) 
 numerical_cols <- setdiff(numerical_cols,c("II","IO"))
+colnames(arrhythmia) <- make.names(colnames(arrhythmia)) 
 
-#pairs(arrhythmia[,c(1:6,14,143)], col=arrhythmia$diagnosis)
+ggplot(arrhythmia, aes(x=qrs_duration , y= heart_rate,color=diagnosis)) +
+  geom_point() + stat_ellipse() + theme_minimal() + theme(text = element_text(size=20))
 
+#Data splitting 
 predictors <- arrhythmia[,-length(arrhythmia)]
 class <- arrhythmia$diagnosis
 
-#Data splitting 
 set.seed(1) 
 inTrain <- createDataPartition(class, p = .7)[[1]] 
-
 arrhythmiaTrain <-  arrhythmia[inTrain, ]
 arrhythmiaTest <-  arrhythmia[-inTrain, ]
 
 ###############################################
 ### Building classifiers 
 
+#F1-score custom metric
 f1 <- function(data, lev = NULL, model = NULL) {
   f1_val <- F1_Score(y_pred = data$pred, y_true = data$obs, positive = lev[1])
   c(F1 = f1_val)
@@ -64,7 +67,7 @@ f1 <- function(data, lev = NULL, model = NULL) {
 
 ctrl <- trainControl(method = "repeatedcv", repeats = 5,classProbs = TRUE,summaryFunction = f1)
 
-## Logistic regression
+## Stepwise Logistic regression
 
 # Specify a null model with no predictors
 null_model <- glm(diagnosis ~ 1, data = arrhythmiaTrain,family = "binomial")
@@ -75,6 +78,7 @@ full_model <- glm(diagnosis ~ ., data = arrhythmiaTrain,family = "binomial")
 # Use a forward stepwise algorithm to build a parsimonious model
 step_model <- step(null_model, scope = list(lower = null_model, upper = full_model), direction = "forward")
 
+#Tune logistic regression 
 set.seed(1056)
 logReg <- train(diagnosis ~ HT + qrs_duration + DD + DA + KK + 
                   EN + HA + KT + KG + height + BN + GP + FB + AV + CL + DP + 
@@ -82,10 +86,14 @@ logReg <- train(diagnosis ~ HT + qrs_duration + DD + DA + KK +
                 data = arrhythmiaTrain,
                 method = "glm",
                 family=binomial,
+                preProc = c("center","scale"),
                 metric = "F1",   
                 trControl = ctrl)  
+ 
+plot(varImp(logReg, scale = FALSE), top = 20, scales = list(y = list(cex = 1.5))) 
 
 ## PLS
+set.seed(1056)
 plsFit <- train(diagnosis ~ .,
                 data = arrhythmiaTrain,
                 method = "pls",
@@ -93,10 +101,7 @@ plsFit <- train(diagnosis ~ .,
                 preProc = c("center","scale"),
                 metric = "F1",
                 trControl = ctrl)
-
-varImp(plsFit, scale = FALSE)
-plot(varImp(plsFit, scale = FALSE), top = 20, scales = list(y = list(cex = .95)))
-
+ 
 ## LDA
 set.seed(1056)
 ldaFit <- train(diagnosis ~ .,
@@ -106,7 +111,9 @@ ldaFit <- train(diagnosis ~ .,
                 metric = "F1",
                 trControl = ctrl 
 )
+  
 
+## PCA + LDA
 set.seed(1056)
 ldaFit2 <- train(diagnosis ~ .,
                  data = arrhythmiaTrain,
@@ -115,6 +122,8 @@ ldaFit2 <- train(diagnosis ~ .,
                  metric = "F1",
                  trControl = ctrl
 )
+
+
 
 ## sparse LDA 
 set.seed(1056)
@@ -125,10 +134,10 @@ sparseldaFit <- train(diagnosis ~ .,
                 metric = "F1",
                 trControl = ctrl
 )
+ 
 
 ## Linear SVM  
 set.seed(1056) 
-
 svmLin <- train(diagnosis ~ .,
                 data = arrhythmiaTrain,
                 method = "svmLinear",
@@ -148,18 +157,17 @@ svmRad <- train(diagnosis ~ .,
                 metric = "F1",
                 trControl = ctrl)
 
-ggplot(svmFit) + theme_bw() 
+ggplot(svmRad) + theme_bw()  + theme(text = element_text(size=17.5))  
 
 ## Polynomial SVM 
 set.seed(1056) 
-
 svmPol<- train(diagnosis ~ .,
                data = arrhythmiaTrain,
                method = "svmPoly",
                preProc = c("center", "scale"),
                tuneLength = 4,
                metric = "F1",
-               trControl = ctrl)
+               trControl = ctrl) 
 
 ## kNN
 set.seed(1056) 
@@ -169,12 +177,10 @@ knnModel = train(
   method = "knn",
   metric = "F1",
   trControl = ctrl,
-  preProc = c("center", "scale", "pca"),
+  preProc = c("center", "scale"),
   tuneGrid = expand.grid(k = seq(1, 101, by = 2))  
   )
-  
-
-ggplot(knnModel) + theme_bw() 
+   
                    
 ## Random forests
 set.seed(1056) 
@@ -186,56 +192,66 @@ rfModel <- train(
   tuneGrid= expand.grid(.mtry=c(1:15)), 
   trControl=ctrl)
 
-ggplot(rfModel) + theme_bw() 
+ggplot(rfModel) + theme_bw()   + theme(text = element_text(size=17.5))  
+plot(varImp(rfModel, scale = FALSE), top = 20, scales = list(y = list(cex = 0.95)))
 
 ## CART 
+set.seed(1056) 
 rpFit <- train(
   diagnosis ~ .,
   data = arrhythmiaTrain,
-  method = "rpart",
-  metric = "F1",
-  # maximize = FALSE,
-  # tuneLength = 20,
-  trControl = ctrl)
+  method = "rpart2",
+  metric = "F1", 
+  tuneLength = 10,
+  trControl = ctrl) 
 
-## Bagging
+#plot(rpFit$finalModel)
+
+## Boosted tree
+gbmGrid <- expand.grid(interaction.depth = seq(1, 7, by = 2),
+                       n.trees = seq(100, 1000, by = 50),
+                       shrinkage = c(0.01, 0.1),
+                       n.minobsinnode = 10)
 
 set.seed(1056) 
-bagModel <- train(
-  diagnosis~., 
-  data=arrhythmiaTrain, 
-  method= "treebag", 
-  metric="F1", 
-  trControl=ctrl) 
+gbmModel <- train(
+  diagnosis ~ .,
+  data = arrhythmiaTrain, 
+  method = "gbm",
+  tuneGrid = gbmGrid, 
+  metric = "F1",
+  verbose = FALSE,
+  trControl = ctrl)
+
+ggplot(gbmModel) + theme_bw()  + theme(text = element_text(size=17.5))  
 
 ###############################################
 ### Results summary
 
-results <- resamples(list(Logistic = logReg, Logistic2 = logReg2,
-                          PenalizedLogistic = logRegPen, 
-                          PLS = plsFit, LDA = ldaFit, LDA2 = ldaFit2,
-                          sparseLDA= sparseldaFit, SVMLin=svmLin,SVMRad=svmRad,
-                          SVMPoly = svmPol,kNN = knnModel, RF = rfModel)) #, CART = rpFit,
+results <- resamples(list(LogisticReg = logReg, 
+                          PLS = plsFit, LDA = ldaFit, pca_LDA = ldaFit2,
+                          sparseLDA= sparseldaFit, LinearSVM=svmLin,RadialSVM=svmRad,
+                          PolySVM = svmPol, kNN = knnModel, RandForest = rfModel,
+                          CART = rpFit, GBM= gbmModel)) 
 
-dotplot(results) 
-
-summary(results)
+# summary(results)
+# dotplot(results) 
 
 bwplot(results)
  
-  
+xyplot(results) 
 
-xyplot(results)
-densityplot(results)
+# densityplot(resamples(list(LogisticReg = logReg,  RandForest = rfModel,
+#                            GBM= gbmModel)),auto.key = TRUE)
 
 
-
-modelDifferences <- diff(results)
+modelDifferences <- diff(resamples(list(LogisticReg = logReg,  RandForest = rfModel,
+                                        GBM= gbmModel)))
 summary(modelDifferences)
 
 ###############################################
 ### Prediction results
-finalmodel <- logReg
+finalmodel <- rfModel
 predProb <- predict(finalmodel , arrhythmiaTest,type = "prob")
 predClass <- predict(finalmodel , arrhythmiaTest)
 
