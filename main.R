@@ -1,7 +1,7 @@
 #### Cardiac arrhythmia classification
 rm(list=ls()) 
 library("easypackages")  
-libraries("readr","party","leaps","caret","pROC","Boruta")
+libraries("readr","party","leaps","caret","pROC","MLmetrics")
 
 ############################################### 
 ### Additional processing  
@@ -56,15 +56,22 @@ arrhythmiaTest <-  arrhythmia[-inTrain, ]
 
 ###############################################
 ### Building classifiers 
+
+f1 <- function(data, lev = NULL, model = NULL) {
+  f1_val <- F1_Score(y_pred = data$pred, y_true = data$obs, positive = lev[1])
+  c(F1 = f1_val)
+}
+
+ctrl <- trainControl(method = "repeatedcv", repeats = 5,classProbs = TRUE,summaryFunction = f1)
+
 ## Logistic regression
 set.seed(1056)
 logReg <- train(diagnosis ~ .,
                      data = arrhythmiaTrain,
                      method = "glm",
-                     family=binomial(),
-                     metric = "ROC",
-                     trControl = trainControl(method = "repeatedcv",
-                                              repeats = 5,classProbs = TRUE))
+                     family=binomial,
+                     metric = "F1",  
+                     trControl = ctrl)
 
 varImp(logReg)
 
@@ -74,21 +81,30 @@ confusionMatrix(logRegPred,arrhythmiaTest$diagnosis,positive = "Anormal")
 
 ## Logistic regression regularized
 set.seed(1056)
+
+myGrid <- expand.grid(
+  alpha = 0:1,
+  lambda = seq(0.0001, 1, length = 20)
+)
+
 logRegPen <- train(diagnosis ~ .,
                 data = arrhythmiaTrain,
                 method = "glmnet",
-                family=binomial(),
-                metric = "ROC",
-                trControl = trainControl(method = "repeatedcv",
-                                         repeats = 5,classProbs = TRUE))
-
-
-# alpha = 1, 
-# lambda = NULL,
+                family=binomial,
+                tuneGrid = myGrid,
+                metric = "F1",
+                trControl = ctrl)
+ 
 
 ## PLS
 
 ## LDA
+set.seed(1056)
+model4 <- train(diagnosis ~ .,
+                data = arrhythmiaTrain,
+                method = "lda", 
+                #preProcess = c("zv", "center", "scale", "pca")
+)
 
 ## sparse LDA (penalized)
 
@@ -105,8 +121,7 @@ svmFit <- train(diagnosis ~ .,
                 preProc = c("center", "scale"),
                 tuneLength = 10,
                 metric = "ROC",
-                trControl = trainControl(method = "repeatedcv",
-                                         repeats = 5,classProbs = TRUE))
+                trControl = ctrl)
 
 ggplot(svmFit) + theme_bw()
 
@@ -121,8 +136,7 @@ knnModel = train(
   data = arrhythmiaTrain,
   method = "knn",
   metric = "ROC",
-  trControl = trainControl(method = "repeatedcv",
-                           repeats = 5,classProbs = TRUE),
+  trControl = ctrl,
   tuneGrid = expand.grid(k = seq(1, 101, by = 2)) #optional
   )
   
@@ -134,7 +148,10 @@ knnPred <- predict(knnModel, arrhythmiaTest)
 confusionMatrix(knnPred,arrhythmiaTest$diagnosis,positive = "Anormal") 
 
 ## CART 
-
+rpFitCost <- train(x = trainData[, predictors],
+                   y= trainData$Class, method = "rpart", metric = "Cost", maximize = FALSE,tuneLength = 20,
+                   trControl = ctrl)
+                   
 ## Random forests
 set.seed(1056)
 tunegrid <- expand.grid(.mtry=c(1:15))
@@ -144,8 +161,8 @@ rfModel <- train(
   method="rf", 
   metric="ROC",
   tuneGrid=tunegrid, 
-  trControl=trainControl(method = "repeatedcv",
-                         repeats = 5,classProbs = TRUE))
+  trControl=ctrl)
+
 ggplot(rfModel) + theme_bw()
 
 rfPred <- predict(rfModel, arrhythmiaTest)  
@@ -166,8 +183,17 @@ confusionMatrix(rfPred,arrhythmiaTest$diagnosis,positive = "Anormal")
 ###############################################
 ### Results summary
 
-resamp <- resamples(list(SVM = svmFit, Logistic = logReg, kNN = knnModel))
-summary(resamp)
+results <- resamples(list(SVM = svmFit, Logistic = logReg, kNN = knnModel))
+summary(results)
+
+bwplot(results)
+dotplot(results)
+dotplot(results, metric = "ROC")
+
+xyplot(resamps, metric = "ROC")
+densityplot(resamps, metric = "ROC")
+
+
 
 modelDifferences <- diff(resamp)
 summary(modelDifferences)
