@@ -199,7 +199,8 @@ rpFit <- train(
   tuneLength = 10,
   trControl = ctrl) 
 
-#plot(rpFit$finalModel)
+# plot(rpFit$finalModel)
+# text(rpFit$finalModel)
 
 ## Boosted tree
 gbmGrid <- expand.grid(interaction.depth = seq(1, 7, by = 2),
@@ -222,7 +223,7 @@ gbmModel <- train(
 ###############################################
 ### Results summary
 
-results <- resamples(list(LogisticReg = logReg, 
+results <- resamples(list(LogisticReg = logReg2, 
                           PLS = plsFit, LDA1 = ldaFit, LDA2 = ldaFit2,
                           sparseLDA= sparseldaFit, LinearSVM=svmLin,RadialSVM=svmRad,
                           PolySVM = svmPol, kNN = knnModel, RandForest = rfModel,
@@ -231,16 +232,16 @@ results <- resamples(list(LogisticReg = logReg,
 # summary(results)
 # dotplot(results) 
 
-bwplot(results)
+bwplot(results, metric="ROC")
  
-xyplot(resamples(list(LogisticReg = logReg,  GBM= gbmModel))) 
 
 # densityplot(resamples(list(LogisticReg = logReg,  RandForest = rfModel,
 #                            GBM= gbmModel)),auto.key = TRUE)
 
 
-modelDifferences <- diff(resamples(list(LogisticReg = logReg,  RandForest = rfModel,
-                                        GBM= gbmModel)))
+modelDifferences <- diff(resamples(list(LogisticReg = logReg2,  RandForest = rfModel,
+                                        GBM= gbmModel,RadialSVM=svmRad,
+                                        PolySVM = svmPol)))
 summary(modelDifferences)
 
 ###############################################
@@ -277,7 +278,14 @@ plot(rocCurve2, add = TRUE, col = "blue")
 legend(0.8, 0.2, legend = c("Logistic Regression", "Random Forest"),
        col = c("black", "blue"), lty = 2:1, cex = 0.95)
 
-ggplot(rfModel) + theme_bw()   + theme(text = element_text(size=17.5))  
-plot(varImp(rfModel, scale = FALSE), top = 20, scales = list(y = list(cex = 0.95)))
+# ggplot(rfModel) + theme_bw()   + theme(text = element_text(size=17.5))  
+# plot(varImp(rfModel, scale = FALSE), top = 20, scales = list(y = list(cex = 0.95)))
+# 
+# plot(varImp(logReg, scale = FALSE), top = 21, scales = list(y = list(cex = 0.95)))
+# 
+# 
+# xyplot(resamples(list(LogisticReg = logReg,  RF= rfModel))) 
+  
 
- 
+
+      
