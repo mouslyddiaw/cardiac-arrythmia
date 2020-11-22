@@ -45,7 +45,7 @@ numerical_cols <- setdiff(numerical_cols,c("II","IO"))
 colnames(arrhythmia) <- make.names(colnames(arrhythmia)) 
 
 # ggplot(arrhythmia, aes(x=qrs_duration , y= heart_rate,color=diagnosis)) +
-#   geom_point() + stat_ellipse() + theme_minimal() + theme(text = element_text(size=20))
+#    geom_point() + stat_ellipse() + theme_minimal() + theme(text = element_text(size=20))
 
 #Data splitting 
 predictors <- arrhythmia[,-length(arrhythmia)]
@@ -57,15 +57,9 @@ arrhythmiaTrain <-  arrhythmia[inTrain, ]
 arrhythmiaTest <-  arrhythmia[-inTrain, ]
 
 ###############################################
-### Building classifiers 
+### Building classifiers  
 
-#F1-score custom metric
-f1 <- function(data, lev = NULL, model = NULL) {
-  f1_val <- F1_Score(y_pred = data$pred, y_true = data$obs, positive = "Anormal")
-  c(F1 = f1_val)
-}
-
-ctrl <- trainControl(method = "repeatedcv", repeats = 5,classProbs = TRUE,summaryFunction = f1)
+ctrl <- trainControl(method = "repeatedcv", repeats = 5,classProbs = TRUE, summaryFunction = twoClassSummary)
 
 ## Stepwise Logistic regression
 
@@ -87,7 +81,7 @@ logReg <- train(diagnosis ~ HT + qrs_duration + DD + DA + KK +
                 method = "glm",
                 family=binomial,
                 preProc = c("center","scale"),
-                metric = "F1",  
+                metric = "ROC",  
                 trControl = ctrl)  
  
 #plot(varImp(logReg, scale = FALSE), top = 20, scales = list(y = list(cex = 1.5)))  
@@ -99,7 +93,7 @@ plsFit <- train(diagnosis ~ .,
                 method = "pls",
                 tuneGrid = expand.grid(.ncomp = 1:10),
                 preProc = c("center","scale"),
-                metric = "F1",
+                metric = "ROC",
                 trControl = ctrl)
  
 ## LDA
@@ -108,7 +102,7 @@ ldaFit <- train(diagnosis ~ .,
                 data = arrhythmiaTrain,
                 method = "lda", 
                 preProcess = c("center", "scale"),
-                metric = "F1",
+                metric = "ROC",
                 trControl = ctrl 
 )
   
@@ -119,7 +113,7 @@ ldaFit2 <- train(diagnosis ~ .,
                  data = arrhythmiaTrain,
                  method = "lda", 
                  preProcess = c("center", "scale","pca"),
-                 metric = "F1",
+                 metric = "ROC",
                  trControl = ctrl
 )
 
@@ -131,7 +125,7 @@ sparseldaFit <- train(diagnosis ~ .,
                 data = arrhythmiaTrain,
                 method = "sparseLDA", 
                 preProcess = c("center", "scale"),
-                metric = "F1",
+                metric = "ROC",
                 trControl = ctrl
 )
  
@@ -143,7 +137,7 @@ svmLin <- train(diagnosis ~ .,
                 method = "svmLinear",
                 preProc = c("center", "scale"),
                 tuneLength = 10,
-                metric = "F1",
+                metric = "ROC",
                 trControl = ctrl)
 
 ## Radial SVM  
@@ -154,7 +148,7 @@ svmRad <- train(diagnosis ~ .,
                 method = "svmRadial",
                 preProc = c("center", "scale"),
                 tuneLength = 10,
-                metric = "F1",
+                metric = "ROC",  
                 trControl = ctrl)
 
 #ggplot(svmRad) + theme_bw()  + theme(text = element_text(size=17.5))  
@@ -166,7 +160,7 @@ svmPol<- train(diagnosis ~ .,
                method = "svmPoly",
                preProc = c("center", "scale"),
                tuneLength = 4,
-               metric = "F1",
+               metric = "ROC",
                trControl = ctrl) 
 
 ## kNN
@@ -175,7 +169,7 @@ knnModel = train(
   diagnosis ~ .,
   data = arrhythmiaTrain,
   method = "knn",
-  metric = "F1",
+  metric = "ROC",
   trControl = ctrl,
   preProc = c("center", "scale"),
   tuneGrid = expand.grid(k = seq(1, 101, by = 2))  
@@ -188,7 +182,7 @@ rfModel <- train(
   diagnosis~., 
   data=arrhythmiaTrain, 
   method="rf", 
-  metric="F1",
+  metric="ROC",
   tuneGrid= expand.grid(.mtry=c(1:15)), 
   trControl=ctrl)
 
@@ -201,7 +195,7 @@ rpFit <- train(
   diagnosis ~ .,
   data = arrhythmiaTrain,
   method = "rpart2",
-  metric = "F1", 
+  metric = "ROC", 
   tuneLength = 10,
   trControl = ctrl) 
 
@@ -219,7 +213,7 @@ gbmModel <- train(
   data = arrhythmiaTrain, 
   method = "gbm",
   tuneGrid = gbmGrid, 
-  metric = "F1",
+  metric = "ROC",
   verbose = FALSE,
   trControl = ctrl)
 
@@ -229,7 +223,7 @@ gbmModel <- train(
 ### Results summary
 
 results <- resamples(list(LogisticReg = logReg, 
-                          PLS = plsFit, LDA = ldaFit, pca_LDA = ldaFit2,
+                          PLS = plsFit, LDA1 = ldaFit, LDA2 = ldaFit2,
                           sparseLDA= sparseldaFit, LinearSVM=svmLin,RadialSVM=svmRad,
                           PolySVM = svmPol, kNN = knnModel, RandForest = rfModel,
                           CART = rpFit, GBM= gbmModel)) 
@@ -285,3 +279,5 @@ legend(0.8, 0.2, legend = c("Logistic Regression", "Random Forest"),
 
 ggplot(rfModel) + theme_bw()   + theme(text = element_text(size=17.5))  
 plot(varImp(rfModel, scale = FALSE), top = 20, scales = list(y = list(cex = 0.95)))
+
+ 
