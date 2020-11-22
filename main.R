@@ -44,8 +44,8 @@ arrhythmia  <- subset(arrhythmia, select = -c(II,IO) )
 numerical_cols <- setdiff(numerical_cols,c("II","IO"))
 colnames(arrhythmia) <- make.names(colnames(arrhythmia)) 
 
-ggplot(arrhythmia, aes(x=qrs_duration , y= heart_rate,color=diagnosis)) +
-  geom_point() + stat_ellipse() + theme_minimal() + theme(text = element_text(size=20))
+# ggplot(arrhythmia, aes(x=qrs_duration , y= heart_rate,color=diagnosis)) +
+#   geom_point() + stat_ellipse() + theme_minimal() + theme(text = element_text(size=20))
 
 #Data splitting 
 predictors <- arrhythmia[,-length(arrhythmia)]
@@ -61,7 +61,7 @@ arrhythmiaTest <-  arrhythmia[-inTrain, ]
 
 #F1-score custom metric
 f1 <- function(data, lev = NULL, model = NULL) {
-  f1_val <- F1_Score(y_pred = data$pred, y_true = data$obs, positive = lev[1])
+  f1_val <- F1_Score(y_pred = data$pred, y_true = data$obs, positive = "Anormal")
   c(F1 = f1_val)
 }
 
@@ -90,7 +90,7 @@ logReg <- train(diagnosis ~ HT + qrs_duration + DD + DA + KK +
                 metric = "F1",  
                 trControl = ctrl)  
  
-plot(varImp(logReg, scale = FALSE), top = 20, scales = list(y = list(cex = 1.5)))  
+#plot(varImp(logReg, scale = FALSE), top = 20, scales = list(y = list(cex = 1.5)))  
 
 ## PLS
 set.seed(1056)
@@ -157,7 +157,7 @@ svmRad <- train(diagnosis ~ .,
                 metric = "F1",
                 trControl = ctrl)
 
-ggplot(svmRad) + theme_bw()  + theme(text = element_text(size=17.5))  
+#ggplot(svmRad) + theme_bw()  + theme(text = element_text(size=17.5))  
 
 ## Polynomial SVM 
 set.seed(1056) 
@@ -192,8 +192,8 @@ rfModel <- train(
   tuneGrid= expand.grid(.mtry=c(1:15)), 
   trControl=ctrl)
 
-ggplot(rfModel) + theme_bw()   + theme(text = element_text(size=17.5))  
-plot(varImp(rfModel, scale = FALSE), top = 20, scales = list(y = list(cex = 0.95)))
+# ggplot(rfModel) + theme_bw()   + theme(text = element_text(size=17.5))  
+# plot(varImp(rfModel, scale = FALSE), top = 20, scales = list(y = list(cex = 0.95)))
 
 ## CART 
 set.seed(1056) 
@@ -223,7 +223,7 @@ gbmModel <- train(
   verbose = FALSE,
   trControl = ctrl)
 
-ggplot(gbmModel) + theme_bw()  + theme(text = element_text(size=17.5))  
+#ggplot(gbmModel) + theme_bw()  + theme(text = element_text(size=17.5))  
 
 ###############################################
 ### Results summary
@@ -282,4 +282,6 @@ plot(rocCurve1, col = "black", lty = 2)
 plot(rocCurve2, add = TRUE, col = "blue")
 legend(0.8, 0.2, legend = c("Logistic Regression", "Random Forest"),
        col = c("black", "blue"), lty = 2:1, cex = 0.95)
- 
+
+ggplot(rfModel) + theme_bw()   + theme(text = element_text(size=17.5))  
+plot(varImp(rfModel, scale = FALSE), top = 20, scales = list(y = list(cex = 0.95)))
