@@ -87,10 +87,10 @@ logReg <- train(diagnosis ~ HT + qrs_duration + DD + DA + KK +
                 method = "glm",
                 family=binomial,
                 preProc = c("center","scale"),
-                metric = "F1",   
+                metric = "F1",  
                 trControl = ctrl)  
  
-plot(varImp(logReg, scale = FALSE), top = 20, scales = list(y = list(cex = 1.5))) 
+plot(varImp(logReg, scale = FALSE), top = 20, scales = list(y = list(cex = 1.5)))  
 
 ## PLS
 set.seed(1056)
@@ -239,7 +239,7 @@ results <- resamples(list(LogisticReg = logReg,
 
 bwplot(results)
  
-xyplot(results) 
+xyplot(resamples(list(LogisticReg = logReg,  GBM= gbmModel))) 
 
 # densityplot(resamples(list(LogisticReg = logReg,  RandForest = rfModel,
 #                            GBM= gbmModel)),auto.key = TRUE)
@@ -251,15 +251,35 @@ summary(modelDifferences)
 
 ###############################################
 ### Prediction results
-finalmodel <- rfModel
-predProb <- predict(finalmodel , arrhythmiaTest,type = "prob")
-predClass <- predict(finalmodel , arrhythmiaTest)
 
-confusionMatrix(predClass,arrhythmiaTest$diagnosis,positive = "Anormal") 
-F1_Score(y_pred = predClass, y_true = arrhythmiaTest$diagnosis, positive = "Anormal")
+#Performance of Log. Reg.
+predProb1 <- predict(logReg , arrhythmiaTest,type = "prob")
+predClass1 <- predict(logReg , arrhythmiaTest)
 
+confusionMatrix(predClass1,arrhythmiaTest$diagnosis,positive = "Anormal") 
+f1_1 <- F1_Score(y_pred = predClass1, y_true = arrhythmiaTest$diagnosis, positive = "Anormal")
 
-auc( roc(response = arrhythmiaTest$diagnosis,
-                     predictor = predProb[,"Anormal"],
-                    levels = rev(levels(arrhythmiaTest$diagnosis))))
+rocCurve1 <- roc(response = arrhythmiaTest$diagnosis,
+            predictor = predProb1$Anormal,
+            levels = rev(levels(arrhythmiaTest$diagnosis)))
+
+auc1 <- auc( rocCurve1)
+
+#Performance of RF
+predProb2 <- predict(rfModel , arrhythmiaTest,type = "prob")
+predClass2 <- predict(rfModel , arrhythmiaTest)
+
+confusionMatrix(predClass2,arrhythmiaTest$diagnosis,positive = "Anormal") 
+f1_2 <- F1_Score(y_pred = predClass2, y_true = arrhythmiaTest$diagnosis, positive = "Anormal")
+
+rocCurve2 <- roc(response = arrhythmiaTest$diagnosis,
+                 predictor = predProb2$Anormal,
+                 levels = rev(levels(arrhythmiaTest$diagnosis)))
+
+auc2 <- auc( rocCurve2) 
+
+plot(rocCurve1, col = "black", lty = 2)
+plot(rocCurve2, add = TRUE, col = "blue")
+legend(0.8, 0.2, legend = c("Logistic Regression", "Random Forest"),
+       col = c("black", "blue"), lty = 2:1, cex = 0.95)
  
