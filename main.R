@@ -47,6 +47,20 @@ colnames(arrhythmia) <- make.names(colnames(arrhythmia))
 # ggplot(arrhythmia, aes(x=qrs_duration , y= heart_rate,color=diagnosis)) +
 #    geom_point() + stat_ellipse() + theme_minimal() + theme(text = element_text(size=20))
 
+# par(
+#   mfrow=c(2,2),
+#   mar=c(4,4,1,0)
+# )
+# 
+# hist(arrhythmia$age, breaks=30 , xlim=c(0,100) , col=rgb(1,0,0,0.5) , xlab="age", main="" ) 
+# hist(arrhythmia$height, breaks=30 , xlim=c(100,200) , col=rgb(1,0,0,0.5) , xlab="height (cm)", main="" )
+# hist(arrhythmia$weight, breaks=30 , xlim=c(0,200) , col=rgb(1,0,0,0.5) , xlab="weight (kg)", main="") 
+# 
+# ggplot(arrhythmia) + geom_bar(aes(x = sex),width=0.7,color=rgb(1,0,0,0.5), 
+#                               fill=rgb(1,0,0,0.5)) +coord_flip() + theme(panel.grid.major = element_blank(),
+#                                       panel.grid.minor = element_blank(),
+#                                       panel.background = element_blank())
+
 #Data splitting 
 predictors <- arrhythmia[,-length(arrhythmia)]
 class <- arrhythmia$diagnosis
@@ -71,6 +85,7 @@ full_model <- glm(diagnosis ~ ., data = arrhythmiaTrain,family = "binomial")
 
 # Use a forward stepwise algorithm to build a parsimonious model
 step_model <- step(null_model, scope = list(lower = null_model, upper = full_model), direction = "forward")
+ 
 
 #Tune logistic regression 
 set.seed(1056)
@@ -223,7 +238,7 @@ gbmModel <- train(
 ###############################################
 ### Results summary
 
-results <- resamples(list(LogisticReg = logReg2, 
+results <- resamples(list(LogisticReg = logReg, 
                           PLS = plsFit, LDA1 = ldaFit, LDA2 = ldaFit2,
                           sparseLDA= sparseldaFit, LinearSVM=svmLin,RadialSVM=svmRad,
                           PolySVM = svmPol, kNN = knnModel, RandForest = rfModel,
@@ -239,7 +254,7 @@ bwplot(results, metric="ROC")
 #                            GBM= gbmModel)),auto.key = TRUE)
 
 
-modelDifferences <- diff(resamples(list(LogisticReg = logReg2,  RandForest = rfModel,
+modelDifferences <- diff(resamples(list(LogisticReg = logReg,  RandForest = rfModel,
                                         GBM= gbmModel,RadialSVM=svmRad,
                                         PolySVM = svmPol)))
 summary(modelDifferences)
@@ -285,7 +300,10 @@ legend(0.8, 0.2, legend = c("Logistic Regression", "Random Forest"),
 # 
 # 
 # xyplot(resamples(list(LogisticReg = logReg,  RF= rfModel))) 
+
+
+
+ 
   
 
-
-      
+ 
